@@ -29,6 +29,15 @@ const int channelCount = 2;
 #define CODEC_ENABLE_PIN 33
 
 // a potentiometer at A2 is on adc#1
+
+
+
+//struggling to read using analogRead while we are doing i2s directly from ADC 
+//might be better to use the ideas in this article to go direct!
+
+//https://www.toptal.com/embedded/esp32-audio-sampling
+
+//or wait until we are using an external DAC (need more than eight bits anyway, and 16 bits of ADC would be good too)
 #define POT_PIN A9
 float pot=0.f;
 
