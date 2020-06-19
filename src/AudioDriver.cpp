@@ -40,6 +40,7 @@
 
 #include "AudioDriver.h"
 
+
 //I2S built-in ADC unit
 #define I2S_ADC_UNIT              ADC_UNIT_1
 //I2S built-in ADC channel
@@ -99,18 +100,18 @@ int AudioDriver::setupBuiltin(int fs, int channelCount, i2s_port_t i2s_port)
 	this->channelCount = channelCount;
 	this->i2sPort = constrain(i2s_port, I2S_NUM_0, I2S_NUM_MAX);
 
-	//int mclk_rate = fs * 384; // FIXME: factor depends on fs and CKS pins settings
+	//int mclk_rate = fs * (384*2); // FIXME: factor depends on fs and CKS pins settings
 
 	i2s_config_t i2s_config;
-    i2s_config.mode = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_RX | I2S_MODE_TX | I2S_MODE_DAC_BUILT_IN | I2S_MODE_ADC_BUILT_IN),
+    i2s_config.mode = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_RX | I2S_MODE_TX | I2S_MODE_DAC_BUILT_IN /*| I2S_MODE_ADC_BUILT_IN*/),
     i2s_config.sample_rate = fs;
     i2s_config.bits_per_sample = I2S_BITS_PER_SAMPLE_16BIT; //I2S_BITS_PER_SAMPLE_24BIT; //should be 16 for builtin stuff? - I2S_BITS_PER_SAMPLE_16BIT
-    i2s_config.channel_format = I2S_CHANNEL_FMT_RIGHT_LEFT; // switch to left only?
-    i2s_config.communication_format = (i2s_comm_format_t)(I2S_COMM_FORMAT_I2S_MSB);
-    i2s_config.intr_alloc_flags = 0;//ESP_INTR_FLAG_LEVEL1; // high interrupt priority
+    i2s_config.channel_format = I2S_CHANNEL_FMT_RIGHT_LEFT;//I2S_CHANNEL_FMT_ALL_RIGHT;//I2S_CHANNEL_FMT_RIGHT_LEFT; // switch to left only?
+    i2s_config.communication_format = (i2s_comm_format_t)(/*I2S_COMM_FORMAT_I2S | */I2S_COMM_FORMAT_I2S_MSB);
+    i2s_config.intr_alloc_flags = ESP_INTR_FLAG_LEVEL1; // high interrupt priority
     i2s_config.dma_buf_count = AudioDriver::BufferCount;
     i2s_config.dma_buf_len = AudioDriver::BufferSize;
-    i2s_config.use_apll = false; //true;
+    i2s_config.use_apll = false; //false;
     //i2s_config.fixed_mclk = mclk_rate;
 
 
@@ -119,55 +120,106 @@ int AudioDriver::setupBuiltin(int fs, int channelCount, i2s_port_t i2s_port)
 
     err += i2s_set_sample_rates(i2s_port, fs);
 
+    SET_PERI_REG_MASK(SYSCON_SARADC_CTRL2_REG, SYSCON_SARADC_SAR1_INV); //MADE NO DIFFERENCE
+
     err += i2s_zero_dma_buffer(i2s_port);
+
+    adc_gpio_init(ADC_UNIT_1, ADC_CHANNEL_0);
+
+    adc1_config_channel_atten(I2S_ADC_CHANNEL, ADC_ATTEN_11db);
+    adc1_config_width(ADC_WIDTH_BIT_12);
 
     //init DAC pad
     i2s_set_dac_mode(I2S_DAC_CHANNEL_BOTH_EN);
     //init ADC pad
     i2s_set_adc_mode(I2S_ADC_UNIT, I2S_ADC_CHANNEL);
-    
+
+
     i2s_adc_enable(i2s_port);
     
     // wait for stable clock
-    delay(500);
+    vTaskDelay(500);
 
     // I2S buffers
-    i2sBufferSize =  channelCount * AudioDriver::BufferSize;    //there are 16 bits per sample, adc returns 
+    i2sBufferSize =  channelCount *AudioDriver::BufferSize;    //there are 16 bits per sample, adc returns 
                                                                 //there are 16 bits per sample, stored 0 first then byte for 8 bit dac
 
+    //do we read half the size as we don't have two channels?!
     i2sReadBuffer = (uint16_t*) calloc(i2sBufferSize, sizeof(uint16_t));
+
     i2sWriteBuffer= (uint16_t*) calloc(i2sBufferSize, sizeof(uint16_t));
 
     return err;
 }
 
 
-
-
-
-int AudioDriver::readBlock() {
+  
+uint AudioDriver::readBlock(uint p_bytesToRead) {
 	uint bytesRead = 0;
 
-	int err = i2s_read(i2sPort, (void*) i2sReadBuffer, i2sBufferSize * sizeof(uint16_t), &bytesRead, portMAX_DELAY); //not port max timeout?, was 500
+    //i2s_adc_enable(i2sPort);
+    //i2s_adc_start(i2sPort);
+    
+	int err = i2s_read(i2sPort, (void*) i2sReadBuffer, p_bytesToRead, &bytesRead, portMAX_DELAY); //not port max timeout?, was 500, portMAX_DELAY
 
+
+    //i2s_adc_disable(i2sPort);
+    //i2s_adc_stop(i2sPort);
+    
 	if (err || bytesRead < (i2sBufferSize * sizeof(int16_t))) {
 		Serial.print("I2S read error: ");
 		Serial.println(bytesRead);
 	}
-	return err;
+	return bytesRead;
 }
 
+uint AudioDriver::readBlock() {
+	uint bytesRead = 0;
 
-int AudioDriver::writeBlock() {
+    //i2s_adc_enable(i2sPort);
+    //i2s_adc_start(i2sPort);
+    
+	int err = i2s_read(i2sPort, (void*) i2sReadBuffer, i2sBufferSize  *sizeof(uint16_t), &bytesRead, portMAX_DELAY); //not port max timeout?, was 500, portMAX_DELAY
+
+
+    //i2s_adc_disable(i2sPort);
+    //i2s_adc_stop(i2sPort);
+    
+	if (err || bytesRead < (i2sBufferSize * sizeof(int16_t))) {
+		Serial.print("I2S read error: ");
+		Serial.println(bytesRead);
+	}
+	return bytesRead;
+}
+
+uint AudioDriver::writeBlock() {
     
 	uint bytesWritten = 0;
-	int err = i2s_write(i2sPort, (const char *) i2sWriteBuffer, channelCount * AudioDriver::BufferSize * sizeof(uint16_t), &bytesWritten, portMAX_DELAY); //was 500
+
+    
+	int err = i2s_write(i2sPort, (const char *) i2sWriteBuffer, channelCount * AudioDriver::BufferSize * sizeof(uint16_t), &bytesWritten, portMAX_DELAY); //portMAX_DELAY //was 500
+
 
 	if (bytesWritten < 1) {
 		Serial.print("I2S write error: ");
 		Serial.println(bytesWritten);
 	}
 	return err;
+}
+
+
+uint AudioDriver::writeBlock(uint p_bytesToWrite) {
+    
+	uint bytesWritten = 0;
+
+	int err = i2s_write(i2sPort, (const char *) i2sWriteBuffer, p_bytesToWrite, &bytesWritten, portMAX_DELAY); //was 500
+
+	if (bytesWritten < p_bytesToWrite) {
+
+		Serial.print("I2S write error: ");
+		Serial.println(bytesWritten);
+	}
+	return bytesWritten;
 }
 
 

@@ -12,6 +12,8 @@
 #include "esp_adc_cal.h"
 #include "driver/adc.h"
 
+
+
 AudioDriver i2sCodec;
 YummyDSP dsp;
 FilterNode lp;
@@ -20,7 +22,7 @@ WaveShaperNode sat;
 DelayNode dly;
 
 // I2S
-const int fs = 88400;//1024 * 4;// 96000;//11200;//96000;// 11200;//48000;
+const int fs = 22222;//1024 * 4;// 96000;//11200;//96000;// 11200;//48000;
 const int channelCount = 2;
 
 
@@ -71,6 +73,7 @@ void setup() {
 
   // run audio in dedicated task on cpu core 1
   xTaskCreatePinnedToCore(audioTask, "audioTask", 10000, NULL, 10, NULL, 1); //task priority  was 10 //configMAX_PRIORITIES-1
+
   
   // run control task on another cpu  core with lower priority
 

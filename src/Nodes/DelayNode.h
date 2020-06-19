@@ -15,7 +15,7 @@
 #define DELAYNODE_H
 
 
-#define MAX_DELAY_LEN (12000) // 520kB RAM is a show stopper
+#define MAX_DELAY_LEN (22000) // 11000 - 520kB RAM is a show stopper
 
 class DelayLine {
 
