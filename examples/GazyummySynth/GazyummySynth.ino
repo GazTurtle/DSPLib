@@ -15,6 +15,8 @@ YummyDSP dsp;
 WaveSynth synth;
 FilterNode lp;
 FilterNode hp;
+WaveShaperNode sat;
+DelayNode dly;
 
 // I2S
 const int fs = 48000;
@@ -55,11 +57,19 @@ void setup() {
   hp.begin(fs, channelCount);
   hp.setupFilter(FilterNode::HPF, 30, 1.0);
 
+  dly.begin(fs, channelCount);
+  dly.setDelayMs(dly.maxDelayMs());
+
+  //sat.begin(fs, channelCount);
+  //sat.setDrive(0.2f);
+
   // add nodes to audio processing tree
   // Synth => hp => lp => I2S out
-  dsp.addNode(&hp);
+//  dsp.addNode(&hp);
   dsp.addNode(&lp);
-
+  dsp.addNode(&dly);
+  //dsp.addNode(&sat);
+  
   // run audio in dedicated task on cpu core 1
   xTaskCreatePinnedToCore(audioTask, "audioTask", 10000, NULL, 10, NULL, 1);
   // run control task on another cpu  core with lower priority
@@ -110,10 +120,14 @@ void loop()
   // low pass filtered and scaled between 0-1
   pot = pot * 0.99 + (float)p / 4096 / (1 + readCnt) * 0.01;
 
+  //only interested in the positive range.
+
+  
+
   delay(1);
 
   //  uncomment to change low pass filter frequency with a pot
-    lp.updateFilter(pot * 10000.f);
+    lp.updateFilter(((pot -0.5)*2)* 10000.f);
 
 
   // playin some (midi) notes
