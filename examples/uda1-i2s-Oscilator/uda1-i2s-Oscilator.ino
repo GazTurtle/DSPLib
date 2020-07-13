@@ -71,7 +71,7 @@ void setup(void)
   ads.begin();
 }
 
-uint8_t g_wavefold = 128;
+uint16_t g_wavefold = 128;
 
 static void setup_triangle_sine_waves(int bits)
 {
@@ -124,17 +124,17 @@ static void setup_triangle_sine_waves(int bits)
         //0xFF000000 = DAC on pin A1
         
         sample_val = 0x00000000;
-        sample_val = uint8_t(((uint8_t)triangle_float) + (pow(2, DAC_bits)/2 - 1)); //a short is 2 bytes on esp32
+        sample_val = uint16_t(((uint16_t)triangle_float));// + (pow(2, DAC_bits)/2 - 1)); //a short is 2 bytes on esp32
         sample_val = sample_val << 16; //remember unsigned int is 4 bytes!, so this shifts (partway, next bit of shove below) towards first byte for channel A1
         
-        sample_val += uint8_t(((uint8_t)sin_float) + (pow(2, DAC_bits)/2 - 1)); //this is2 bytes, but needs swapping to little endian so the MSB is the 8 bits the dac wants
-        sample_val = sample_val << 8; //shift while thing one byte left, notice this moves the 8bits LSB of the 16 bit channel A1 value to the MSB position, first byte.
+        sample_val += uint16_t(((uint16_t)sin_float));// + (pow(2, DAC_bits)/2 - 1)); //this is2 bytes, but needs swapping to little endian so the MSB is the 8 bits the dac wants
+        //sample_val = sample_val << 8; //shift while thing one byte left, notice this moves the 8bits LSB of the 16 bit channel A1 value to the MSB position, first byte.
         samples_data[i] = sample_val;
 
 
     }
 
-    i2s_set_clk((i2s_port_t)I2S_NUM, SAMPLE_RATE, (i2s_bits_per_sample_t)bits, (i2s_channel_t)I2S_CHANNEL_STEREO);
+    //i2s_set_clk((i2s_port_t)I2S_NUM, SAMPLE_RATE, (i2s_bits_per_sample_t)bits, (i2s_channel_t)I2S_CHANNEL_STEREO);
 
     i2s_write((i2s_port_t)I2S_NUM, samples_data, ((bits+8)/16)*SAMPLE_PER_CYCLE*4, &i2s_bytes_write, portMAX_DELAY); //was 100 timeout
 
@@ -155,9 +155,9 @@ void loop(void)
 
       //WAVE_FREQ_HZ = float(adc0)/65535.0f * 3000; //random(30)*100;
 
-      float pot = float(adc0)/65535.0f;
+      //float pot = float(adc0)/65535.0f;
 
-     g_wavefold =  uint8_t (pot * 640.0f)+640;
+     g_wavefold =  uint16_t(adc0+16384 ); //uint16_t (pot * 65535.0f);
 
 //      WAVE_FREQ_HZ = uint8_t (pot * 50.0f)+100;
       
