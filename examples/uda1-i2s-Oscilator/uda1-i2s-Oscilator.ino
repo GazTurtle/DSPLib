@@ -26,9 +26,8 @@ Adafruit_ADS1115 ads;  /* Use this for the 16-bit version */
 
 #define SAMPLE_RATE     (36000) 
 #define I2S_NUM         (0)
-//#define WAVE_FREQ_HZ    (200)
 
-uint16_t WAVE_FREQ_HZ = 100;
+uint16_t WAVE_FREQ_HZ = 80;
 
 #define PI              (3.14159265)
 
@@ -49,8 +48,8 @@ void setup(void)
   i2s_config.bits_per_sample = (i2s_bits_per_sample_t)I2S_BITS_PER_SAMPLE_16BIT;
   i2s_config.channel_format =  I2S_CHANNEL_FMT_RIGHT_LEFT;                         //2-channels
   i2s_config.communication_format =(i2s_comm_format_t)( I2S_COMM_FORMAT_I2S | I2S_COMM_FORMAT_I2S_MSB);
-  i2s_config.dma_buf_count = 6;
-  i2s_config.dma_buf_len = 60;
+  i2s_config.dma_buf_count = 2;
+  i2s_config.dma_buf_len = SAMPLE_PER_CYCLE*2;
   i2s_config.use_apll = 0;//APLL_DISABLE;
   i2s_config.fixed_mclk=-1;
   i2s_config.intr_alloc_flags = ESP_INTR_FLAG_LEVEL1    ;                            //Interrupt level 1
@@ -67,11 +66,14 @@ void setup(void)
   };
         
   i2s_set_pin((i2s_port_t)I2S_NUM, (i2s_pin_config_t *) &pins);
+
+  //i2s_set_clk((i2s_port_t)I2S_NUM, SAMPLE_RATE, (i2s_bits_per_sample_t)16, (i2s_channel_t)I2S_CHANNEL_STEREO);
+
     
   ads.begin();
 }
 
-uint16_t g_wavefold = 128;
+uint16_t g_wavefold = 0;
 
 static void setup_triangle_sine_waves(int bits)
 {
@@ -80,16 +82,13 @@ static void setup_triangle_sine_waves(int bits)
 
 
     //an int is 4 bytes  
-    //int *samples_data = (int *)malloc(((bits+8)/16)*SAMPLE_PER_CYCLE*4); //((bits+8)/16)  = 1 for 16bit and 2 for 24 bit and 32 bit, int maths
-
-    // we are doing 16 bit for now
-    int *samples_data = (int *)malloc(SAMPLE_PER_CYCLE*4);
+    int *samples_data = (int *)malloc(((bits+8)/16)*SAMPLE_PER_CYCLE*4); //((bits+8)/16)  = 1 for 16bit and 2 for 24 bit and 32 bit, int maths
     
     
-    //32 bits - 4 bytes
+    //32 bits = 4 bytes
     unsigned int i, sample_val; 
     
-    byte DAC_bits = 16;
+    byte DAC_bits = bits;
     
     //8 bytes!
     double sin_float, triangle_float, triangle_step = (double) pow(2, DAC_bits) / SAMPLE_PER_CYCLE;
@@ -100,7 +99,7 @@ static void setup_triangle_sine_waves(int bits)
 
 
 
-    triangle_float = -(pow(2, DAC_bits)/2 - 1);
+    triangle_float = -(pow(2, DAC_bits)/2 - 1); //start mid-way
 
     for(i = 0; i < SAMPLE_PER_CYCLE; i++) 
     {
@@ -134,9 +133,8 @@ static void setup_triangle_sine_waves(int bits)
 
     }
 
-    //i2s_set_clk((i2s_port_t)I2S_NUM, SAMPLE_RATE, (i2s_bits_per_sample_t)bits, (i2s_channel_t)I2S_CHANNEL_STEREO);
 
-    i2s_write((i2s_port_t)I2S_NUM, samples_data, ((bits+8)/16)*SAMPLE_PER_CYCLE*4, &i2s_bytes_write, portMAX_DELAY); //was 100 timeout
+    i2s_write((i2s_port_t)I2S_NUM, samples_data, ((bits+8)/16)*SAMPLE_PER_CYCLE*4, &i2s_bytes_write, 100/*portMAX_DELAY*/); //was 100 timeout
 
     //printf("bytes written:%d\r\n",i2s_bytes_write);
 
@@ -157,14 +155,14 @@ void loop(void)
 
       //float pot = float(adc0)/65535.0f;
 
-     g_wavefold =  uint16_t(adc0+16384 ); //uint16_t (pot * 65535.0f);
+     g_wavefold =  uint16_t(adc0+32760 ); //uint16_t (pot * 65535.0f);
 
 //      WAVE_FREQ_HZ = uint8_t (pot * 50.0f)+100;
       
       setup_triangle_sine_waves(16);
 
 
-      //vTaskDelay(5000/portTICK_RATE_MS);
+      //vTaskDelay(500/portTICK_RATE_MS);
       //delay(125 * (random(3)+1));
       //delay(2000);
 
